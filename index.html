@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#07090d">
+<title>Ningaloo Aviation — FlightWatch SAR</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#07090d; --bg2:#0b0f15; --panel:#0f1520; --panel2:#131c28;
+  --border:#1a2535; --border2:#243040;
+  --accent:#00c8ff; --accent2:#0077aa;
+  --green:#00e676; --green2:#00a152;
+  --amber:#ffab00; --red:#ff1744;
+  --text:#cdd8e8; --text2:#7a9ab8; --text3:#3d5a73;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--text);font-family:'Exo 2',sans-serif;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:40px 40px;opacity:0.18;pointer-events:none;z-index:0;}
+
+/* SYNC BAR */
+.sync-bar{position:fixed;top:0;left:0;right:0;z-index:200;height:3px;background:var(–bg2);}
+.sync-bar-fill{height:100%;width:0;background:var(–accent);transition:width 0.3s;}
+.sync-indicator{position:fixed;bottom:70px;right:16px;z-index:200;display:flex;align-items:center;gap:6px;background:rgba(15,21,32,0.95);border:1px solid var(–border2);border-radius:20px;padding:5px 12px;font-size:0.72rem;font-family:‘Rajdhani’,sans-serif;letter-spacing:1px;text-transform:uppercase;}
+.sync-dot{width:7px;height:7px;border-radius:50%;}
+.sync-dot.live{background:var(–green);box-shadow:0 0 6px var(–green);animation:blink 2s infinite;}
+.sync-dot.offline{background:var(–amber);box-shadow:0 0 6px var(–amber);}
+.sync-dot.error{background:var(–red);}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.4}}
+
+/* NAV */
+nav{position:sticky;top:0;z-index:100;background:rgba(7,9,13,0.97);border-bottom:1px solid var(–border2);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:56px;}
+.nav-brand{font-family:‘Rajdhani’,sans-serif;font-size:1.2rem;font-weight:700;letter-spacing:2px;color:var(–accent);text-transform:uppercase;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.nav-brand span{color:var(–text2);font-weight:400;font-size:0.7rem;letter-spacing:1px;display:block;line-height:1.1;}
+.nav-clock{font-family:‘Share Tech Mono’,monospace;font-size:0.9rem;color:var(–accent);letter-spacing:2px;}
+.nav-tabs{display:flex;gap:3px;}
+.nav-tab{padding:5px 13px;border:1px solid var(–border2);background:transparent;color:var(–text2);font-family:‘Rajdhani’,sans-serif;font-size:0.82rem;font-weight:600;letter-spacing:1px;cursor:pointer;text-transform:uppercase;transition:all 0.2s;border-radius:3px;}
+.nav-tab:hover{border-color:var(–accent);color:var(–accent);}
+.nav-tab.active{background:var(–accent2);border-color:var(–accent);color:#fff;}
+.nav-tab.admin-tab{border-color:rgba(255,171,0,0.3);color:var(–amber);}
+.nav-tab.admin-tab.active{background:rgba(255,171,0,0.2);border-color:var(–amber);}
+
+/* VIEWS */
+.view{display:none;position:relative;z-index:1;padding:20px;max-width:1400px;margin:0 auto;}
+.view.active{display:block;}
+
+/* SECTION HEADER */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
+.section-title{font-family:‘Rajdhani’,sans-serif;font-size:1.1rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(–accent);display:flex;align-items:center;gap:8px;}
+.section-title::before{content:’’;width:3px;height:16px;background:var(–accent);border-radius:2px;}
+.section-title.amber-title{color:var(–amber);}
+.section-title.amber-title::before{background:var(–amber);}
+
+/* STATS */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
+.stat-card{background:var(–panel);border:1px solid var(–border2);border-radius:6px;padding:14px 16px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;}
+.stat-card::after{content:’’;position:absolute;top:0;left:0;width:100%;height:2px;}
+.stat-card.blue::after{background:var(–accent);}
+.stat-card.green::after{background:var(–green);}
+.stat-card.amber::after{background:var(–amber);}
+.stat-card.red::after{background:var(–red);}
+.stat-label{font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;color:var(–text3);}
+.stat-value{font-family:‘Rajdhani’,sans-serif;font-size:1.9rem;font-weight:700;line-height:1;}
+.stat-card.blue .stat-value{color:var(–accent);}
+.stat-card.green .stat-value{color:var(–green);}
+.stat-card.amber .stat-value{color:var(–amber);}
+.stat-card.red .stat-value{color:var(–red);}
+
+/* ALERT BANNER */
+.alert-banner{display:none;background:rgba(255,23,68,0.09);border:1px solid rgba(255,23,68,0.5);border-radius:6px;padding:13px 18px;margin-bottom:18px;animation:alertPulse 2s infinite;align-items:center;gap:12px;flex-wrap:wrap;}
+.alert-banner.show{display:flex;}
+@keyframes alertPulse{0%,100%{border-color:rgba(255,23,68,0.5);}50%{border-color:rgba(255,23,68,1);box-shadow:0 0 20px rgba(255,23,68,0.15);}}
+.alert-icon{font-size:1.3rem;}
+.alert-text{flex:1;min-width:180px;}
+.alert-title{font-family:‘Rajdhani’,sans-serif;font-weight:700;font-size:0.95rem;color:var(–red);letter-spacing:1px;text-transform:uppercase;}
+.alert-detail{font-size:0.8rem;color:var(–text2);margin-top:2px;}
+.alert-actions{display:flex;gap:7px;flex-wrap:wrap;}
+.btn-alert-sms{padding:6px 12px;background:rgba(255,171,0,0.15);border:1px solid var(–amber);color:var(–amber);font-family:‘Rajdhani’,sans-serif;font-size:0.75rem;font-weight:700;letter-spacing:1px;cursor:pointer;border-radius:3px;text-transform:uppercase;}
+.btn-alert-checklist{padding:6px 12px;background:rgba(255,23,68,0.15);border:1px solid var(–red);color:var(–red);font-family:‘Rajdhani’,sans-serif;font-size:0.75rem;font-weight:700;letter-spacing:1px;cursor:pointer;border-radius:3px;text-transform:uppercase;}
+
+/* TABLE */
+.flight-table-wrap{background:var(–panel);border:1px solid var(–border2);border-radius:6px;overflow:auto;}
+.flight-table{width:100%;border-collapse:collapse;min-width:750px;}
+.flight-table th{background:var(–panel2);padding:9px 13px;font-family:‘Rajdhani’,sans-serif;font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;color:var(–text3);text-align:left;border-bottom:1px solid var(–border2);white-space:nowrap;}
+.flight-table td{padding:11px 13px;border-bottom:1px solid var(–border);font-size:0.85rem;vertical-align:middle;}
+.flight-table tr:last-child td{border-bottom:none;}
+.flight-table tr:hover td{background:rgba(0,200,255,0.03);}
+.flight-table tr.overdue td{background:rgba(255,23,68,0.07);}
+.flight-table tr.warning td{background:rgba(255,171,0,0.04);}
+.rego{font-family:‘Share Tech Mono’,monospace;color:var(–accent);font-size:0.86rem;}
+.time-mono{font-family:‘Share Tech Mono’,monospace;font-size:0.82rem;}
+.sar-countdown{font-family:‘Share Tech Mono’,monospace;font-size:0.86rem;font-weight:bold;}
+.sar-countdown.ok{color:var(–green);}
+.sar-countdown.warn{color:var(–amber);}
+.sar-countdown.overdue{color:var(–red);animation:pulse 1s infinite;}
+.sar-countdown.pending{color:var(–text3);}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.35}}
+.badge{display:inline-block;padding:3px 8px;border-radius:3px;font-family:‘Rajdhani’,sans-serif;font-size:0.7rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;}
+.badge-airborne{background:rgba(0,230,118,0.15);color:var(–green);border:1px solid rgba(0,230,118,0.3);}
+.badge-landed{background:rgba(61,90,115,0.3);color:var(–text3);border:1px solid var(–border);}
+.badge-overdue{background:rgba(255,23,68,0.2);color:var(–red);border:1px solid rgba(255,23,68,0.4);animation:pulse 1s infinite;}
+.badge-warning{background:rgba(255,171,0,0.15);color:var(–amber);border:1px solid rgba(255,171,0,0.3);}
+
+/* BUTTONS */
+.btn{padding:5px 12px;border-radius:3px;border:1px solid;font-family:‘Rajdhani’,sans-serif;font-size:0.76rem;font-weight:600;letter-spacing:1px;cursor:pointer;text-transform:uppercase;transition:all 0.15s;}
+.btn-land{border-color:var(–green2);color:var(–green);background:rgba(0,230,118,0.08);}
+.btn-land:hover{background:rgba(0,230,118,0.2);}
+.btn-remove{border-color:var(–border2);color:var(–text3);background:transparent;}
+.btn-remove:hover{border-color:var(–red);color:var(–red);}
+.btn-primary{padding:10px 20px;background:var(–accent2);border:1px solid var(–accent);color:#fff;font-family:‘Rajdhani’,sans-serif;font-size:0.9rem;font-weight:700;letter-spacing:2px;cursor:pointer;border-radius:4px;text-transform:uppercase;transition:all 0.2s;}
+.btn-primary:hover{background:var(–accent);box-shadow:0 0 16px rgba(0,200,255,0.3);}
+.btn-primary:disabled{opacity:0.5;cursor:not-allowed;}
+.btn-secondary{padding:10px 20px;background:transparent;border:1px solid var(–border2);color:var(–text2);font-family:‘Rajdhani’,sans-serif;font-size:0.9rem;font-weight:600;letter-spacing:2px;cursor:pointer;border-radius:4px;text-transform:uppercase;transition:all 0.2s;}
+.btn-secondary:hover{border-color:var(–accent);color:var(–accent);}
+.btn-amber{padding:10px 20px;background:rgba(255,171,0,0.15);border:1px solid var(–amber);color:var(–amber);font-family:‘Rajdhani’,sans-serif;font-size:0.9rem;font-weight:700;letter-spacing:2px;cursor:pointer;border-radius:4px;text-transform:uppercase;transition:all 0.2s;}
+.btn-amber:hover{background:rgba(255,171,0,0.28);}
+.btn-danger{padding:6px 12px;background:rgba(255,23,68,0.1);border:1px solid rgba(255,23,68,0.3);color:var(–red);font-family:‘Rajdhani’,sans-serif;font-size:0.76rem;font-weight:600;letter-spacing:1px;cursor:pointer;border-radius:3px;text-transform:uppercase;transition:all 0.15s;}
+.btn-danger:hover{background:rgba(255,23,68,0.25);}
+
+/* FORM */
+.form-panel{background:var(–panel);border:1px solid var(–border2);border-radius:6px;padding:24px;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.form-group{display:flex;flex-direction:column;gap:5px;}
+.form-group.full{grid-column:1/-1;}
+.form-label{font-family:‘Rajdhani’,sans-serif;font-size:0.7rem;letter-spacing:2px;text-transform:uppercase;color:var(–text3);}
+.form-input,.form-select{background:var(–bg2);border:1px solid var(–border2);color:var(–text);padding:10px 12px;border-radius:4px;font-family:‘Exo 2’,sans-serif;font-size:0.88rem;transition:border-color 0.2s;outline:none;width:100%;}
+.form-input:focus,.form-select:focus{border-color:var(–accent);}
+.form-select option{background:var(–bg2);}
+.form-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap;}
+.form-hint{font-size:0.75rem;color:var(–text3);margin-top:2px;}
+
+/* ADMIN CARDS */
+.admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;}
+.admin-section{background:var(–panel);border:1px solid var(–border2);border-radius:6px;padding:20px;}
+.admin-section-title{font-family:‘Rajdhani’,sans-serif;font-size:0.85rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(–amber);margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.admin-list{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;max-height:280px;overflow-y:auto;}
+.admin-item{display:flex;align-items:center;justify-content:space-between;background:var(–bg2);border:1px solid var(–border);border-radius:4px;padding:9px 12px;gap:10px;}
+.admin-item-info{flex:1;}
+.admin-item-name{font-weight:600;font-size:0.88rem;}
+.admin-item-sub{font-size:0.74rem;color:var(–text2);font-family:‘Share Tech Mono’,monospace;margin-top:2px;}
+.admin-add-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;}
+.admin-add-row .form-input{flex:1;min-width:120px;padding:8px 10px;}
+.admin-add-row .form-select{flex:1;min-width:100px;padding:8px 10px;}
+.admin-empty{text-align:center;padding:20px;color:var(–text3);font-family:‘Rajdhani’,sans-serif;font-size:0.8rem;letter-spacing:1px;}
+
+/* CONTACTS */
+.contacts-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+.contact-card{background:var(–panel);border:1px solid var(–border2);border-radius:6px;padding:14px;position:relative;overflow:hidden;}
+.contact-card::before{content:’’;position:absolute;top:0;left:0;width:3px;height:100%;}
+.contact-card.pilot::before{background:var(–accent);}
+.contact-card.ops::before{background:var(–amber);}
+.contact-card.emergency::before{background:var(–red);}
+.contact-role{font-family:‘Rajdhani’,sans-serif;font-size:0.66rem;letter-spacing:2px;text-transform:uppercase;color:var(–text3);margin-bottom:3px;}
+.contact-name{font-weight:600;font-size:0.95rem;margin-bottom:5px;}
+.contact-detail{font-family:‘Share Tech Mono’,monospace;font-size:0.78rem;color:var(–accent);margin-bottom:2px;}
+.contact-sub{font-size:0.74rem;color:var(–text2);}
+
+/* AIRCRAFT FLEET */
+.aircraft-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
+.aircraft-card{background:var(–panel);border:1px solid var(–border2);border-radius:6px;padding:13px;text-align:center;transition:border-color 0.3s;}
+.aircraft-card.available{border-color:var(–green2);}
+.aircraft-card.airborne{border-color:var(–accent2);}
+.aircraft-card.overdue-ac{border-color:var(–red);animation:pulse 2s infinite;}
+.aircraft-rego{font-family:‘Rajdhani’,sans-serif;font-size:1.2rem;font-weight:700;color:var(–accent);}
+.aircraft-type{font-size:0.7rem;color:var(–text3);margin-bottom:6px;}
+.status-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px;}
+.dot-green{background:var(–green);box-shadow:0 0 5px var(–green);}
+.dot-blue{background:var(–accent);box-shadow:0 0 5px var(–accent);}
+.dot-red{background:var(–red);box-shadow:0 0 5px var(–red);animation:pulse 1s infinite;}
+.dot-grey{background:var(–text3);}
+
+/* MODALS */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:1000;align-items:center;justify-content:center;padding:16px;}
+.modal-overlay.show{display:flex;}
+.modal{background:var(–panel);border:1px solid var(–border2);border-radius:8px;padding:26px;width:min(560px,100%);max-height:88vh;overflow-y:auto;animation:slideUp 0.25s ease;}
+@keyframes slideUp{from{transform:translateY(14px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-title{font-family:‘Rajdhani’,sans-serif;font-size:1.25rem;font-weight:700;color:var(–red);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;}
+.modal-subtitle{font-size:0.81rem;color:var(–text2);margin-bottom:20px;line-height:1.5;background:rgba(255,23,68,0.05);border:1px solid rgba(255,23,68,0.15);border-radius:4px;padding:8px 12px;}
+.checklist-step{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(–border);}
+.checklist-step:last-child{border-bottom:none;}
+.step-num{width:26px;height:26px;border-radius:50%;background:var(–panel2);border:1px solid var(–border2);display:flex;align-items:center;justify-content:center;font-family:‘Share Tech Mono’,monospace;font-size:0.76rem;color:var(–text3);flex-shrink:0;margin-top:2px;cursor:pointer;transition:all 0.2s;user-select:none;}
+.step-num.done{background:var(–green2);border-color:var(–green);color:#fff;}
+.step-body{flex:1;}
+.step-title{font-weight:600;font-size:0.91rem;margin-bottom:3px;}
+.step-detail{font-size:0.78rem;color:var(–text2);line-height:1.55;}
+.step-time{font-family:‘Share Tech Mono’,monospace;font-size:0.7rem;color:var(–amber);margin-top:3px;}
+.modal-close-btn{width:100%;margin-top:16px;padding:10px;background:transparent;border:1px solid var(–border2);color:var(–text2);font-family:‘Rajdhani’,sans-serif;font-size:0.9rem;font-weight:600;letter-spacing:2px;cursor:pointer;border-radius:4px;text-transform:uppercase;transition:all 0.2s;}
+.modal-close-btn:hover{border-color:var(–accent);color:var(–accent);}
+
+/* SMS MODAL */
+.sms-modal{background:var(–panel);border:1px solid var(–amber);border-radius:8px;padding:24px;width:min(440px,100%);animation:slideUp 0.25s ease;}
+.sms-title{font-family:‘Rajdhani’,sans-serif;font-size:1.1rem;font-weight:700;color:var(–amber);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;}
+.sms-preview{background:var(–bg2);border:1px solid var(–border2);border-radius:4px;padding:12px;font-family:‘Share Tech Mono’,monospace;font-size:0.78rem;color:var(–text);line-height:1.75;margin-bottom:16px;white-space:pre-wrap;}
+.sms-recipient{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(–border);}
+.sms-recipient:last-child{border-bottom:none;}
+.sms-check{width:15px;height:15px;accent-color:var(–amber);}
+.sms-name{font-weight:600;font-size:0.86rem;}
+.sms-num{font-family:‘Share Tech Mono’,monospace;font-size:0.76rem;color:var(–text2);}
+.btn-send-sms{width:100%;padding:10px;margin-top:14px;background:rgba(255,171,0,0.15);border:1px solid var(–amber);color:var(–amber);font-family:‘Rajdhani’,sans-serif;font-size:0.92rem;font-weight:700;letter-spacing:2px;cursor:pointer;border-radius:4px;text-transform:uppercase;transition:all 0.2s;}
+.btn-send-sms:hover{background:rgba(255,171,0,0.28);}
+.sent-confirm{display:none;text-align:center;color:var(–green);font-family:‘Rajdhani’,sans-serif;font-size:0.92rem;letter-spacing:1px;padding:7px;}
+
+/* LOG */
+.log-entry{display:flex;gap:9px;padding:8px 0;border-bottom:1px solid var(–border);font-size:0.82rem;align-items:flex-start;}
+.log-time{font-family:‘Share Tech Mono’,monospace;color:var(–text3);white-space:nowrap;font-size:0.75rem;margin-top:1px;}
+.log-msg{color:var(–text);flex:1;line-height:1.5;}
+.log-msg b{color:var(–accent);}
+.log-type{padding:2px 6px;border-radius:2px;font-family:‘Rajdhani’,sans-serif;font-size:0.65rem;font-weight:700;letter-spacing:1px;white-space:nowrap;}
+.log-type.dep{background:rgba(0,200,255,0.1);color:var(–accent);}
+.log-type.arr{background:rgba(0,230,118,0.1);color:var(–green);}
+.log-type.sar{background:rgba(255,23,68,0.1);color:var(–red);}
+.log-type.info{background:rgba(61,90,115,0.2);color:var(–text3);}
+.log-type.admin{background:rgba(255,171,0,0.1);color:var(–amber);}
+
+.divider{border:none;border-top:1px solid var(–border);margin:20px 0;}
+.offline-notice{display:none;background:rgba(255,171,0,0.08);border:1px solid rgba(255,171,0,0.3);border-radius:5px;padding:10px 14px;margin-bottom:16px;font-size:0.82rem;color:var(–amber);}
+.offline-notice.show{display:block;}
+
+/* TOAST */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:var(–panel2);border:1px solid var(–border2);border-radius:6px;padding:10px 20px;font-family:‘Rajdhani’,sans-serif;font-size:0.88rem;letter-spacing:1px;z-index:500;opacity:0;transition:all 0.3s;white-space:nowrap;pointer-events:none;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.toast.success{border-color:var(–green);color:var(–green);}
+.toast.error{border-color:var(–red);color:var(–red);}
+.toast.info{border-color:var(–accent);color:var(–accent);}
+
+/* MOBILE */
+@media(max-width:768px){
+.stats-row{grid-template-columns:1fr 1fr;}
+.form-grid{grid-template-columns:1fr;}
+.admin-grid{grid-template-columns:1fr;}
+.nav-tabs{display:none;}
+.mobile-nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:rgba(7,9,13,0.98);border-top:1px solid var(–border2);z-index:100;justify-content:space-around;padding:5px 0 8px;}
+.mobile-nav-btn{display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;color:var(–text3);cursor:pointer;font-family:‘Rajdhani’,sans-serif;font-size:0.58rem;letter-spacing:1px;text-transform:uppercase;padding:3px 6px;}
+.mobile-nav-btn.active{color:var(–accent);}
+.mobile-nav-btn.admin-btn.active{color:var(–amber);}
+.mobile-nav-btn .icon{font-size:1.05rem;}
+.view{padding:14px 12px 80px;}
+.sync-indicator{bottom:66px;}
+}
+@media(min-width:769px){.mobile-nav{display:none;}}
+</style>
+
+</head>
+<body>
+
+<div class="sync-bar"><div class="sync-bar-fill" id="sync-bar-fill"></div></div>
+
+<nav>
+  <div class="nav-brand">✈ Ningaloo Aviation <span>FLIGHTWATCH SAR</span></div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showView('ops')">OPS Centre</button>
+    <button class="nav-tab" onclick="showView('pilot')">Pilot Check-In</button>
+    <button class="nav-tab" onclick="showView('aircraft')">Fleet</button>
+    <button class="nav-tab" onclick="showView('contacts')">Contacts</button>
+    <button class="nav-tab" onclick="showView('log')">SAR Log</button>
+    <button class="nav-tab admin-tab" onclick="showView('admin')">⚙ Admin</button>
+  </div>
+  <div class="nav-clock" id="clock">--:-- UTC</div>
+</nav>
+
+<div class="mobile-nav">
+  <button class="mobile-nav-btn active" onclick="showView('ops')"><span class="icon">📡</span>OPS</button>
+  <button class="mobile-nav-btn" onclick="showView('pilot')"><span class="icon">✈</span>CHECK-IN</button>
+  <button class="mobile-nav-btn" onclick="showView('aircraft')"><span class="icon">🛩</span>FLEET</button>
+  <button class="mobile-nav-btn" onclick="showView('contacts')"><span class="icon">📞</span>CONTACTS</button>
+  <button class="mobile-nav-btn" onclick="showView('log')"><span class="icon">📋</span>LOG</button>
+  <button class="mobile-nav-btn admin-btn" onclick="showView('admin')"><span class="icon">⚙</span>ADMIN</button>
+</div>
+
+<div class="sync-indicator">
+  <div class="sync-dot offline" id="sync-dot"></div>
+  <span id="sync-label">Connecting...</span>
+</div>
+
+<!-- ═══ OPS CENTRE ═══ -->
+
+<div class="view active" id="view-ops">
+  <div class="offline-notice" id="offline-notice">⚠ No internet — showing last known data. Will sync automatically when signal returns.</div>
+  <div class="alert-banner" id="overdue-banner">
+    <div class="alert-icon">🚨</div>
+    <div class="alert-text">
+      <div class="alert-title" id="banner-title">SARTIME OVERDUE</div>
+      <div class="alert-detail" id="banner-detail">—</div>
+    </div>
+    <div class="alert-actions">
+      <button class="btn-alert-sms" onclick="openSMSModal()">📱 SMS Alert</button>
+      <button class="btn-alert-checklist" onclick="openEscalationModal()">📋 Escalation</button>
+    </div>
+  </div>
+  <div class="stats-row">
+    <div class="stat-card blue"><div class="stat-label">Total Flights Today</div><div class="stat-value" id="stat-total">0</div></div>
+    <div class="stat-card green"><div class="stat-label">Airborne Now</div><div class="stat-value" id="stat-airborne">0</div></div>
+    <div class="stat-card amber"><div class="stat-label">SARTIME Warning</div><div class="stat-value" id="stat-warning">0</div></div>
+    <div class="stat-card red"><div class="stat-label">Overdue</div><div class="stat-value" id="stat-overdue">0</div></div>
+  </div>
+  <div class="section-header">
+    <div class="section-title">Active Flight Watch</div>
+    <div style="font-family:'Share Tech Mono',monospace;font-size:0.72rem;color:var(--text3)" id="last-update">Live</div>
+  </div>
+  <div class="flight-table-wrap">
+    <table class="flight-table">
+      <thead><tr><th>Rego</th><th>Pilot</th><th>Route</th><th>ETD</th><th>ETA</th><th>SARTIME</th><th>Countdown</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody id="flights-tbody"><tr><td colspan="9" style="text-align:center;color:var(--text3);padding:40px;font-family:'Rajdhani',sans-serif;letter-spacing:2px;font-size:0.88rem;">CONNECTING TO FIREBASE...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ PILOT CHECK-IN ═══ -->
+
+<div class="view" id="view-pilot">
+  <div class="section-header"><div class="section-title">Pilot Flight Check-In</div></div>
+  <div class="offline-notice" id="offline-notice-pilot">⚠ Offline — check-in saved locally and will sync when signal returns.</div>
+  <div class="form-panel">
+    <div style="font-size:0.84rem;color:var(--text2);line-height:1.6;margin-bottom:18px;">Complete before departure. Your flight appears live on the OPS dashboard. Cancel your SARTIME immediately on safe landing.</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Pilot Name *</label>
+        <select class="form-select" id="ci-pilot"><option value="">— Select Pilot —</option></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mobile Number *</label>
+        <input class="form-input" id="ci-phone" type="tel" placeholder="04XX XXX XXX">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Aircraft Rego *</label>
+        <select class="form-select" id="ci-rego"><option value="">— Select Aircraft —</option></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Passengers on Board</label>
+        <input class="form-input" id="ci-pax" type="number" min="0" max="9" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Departure *</label>
+        <input class="form-input" id="ci-dep" type="text" placeholder="e.g. YMMB" style="text-transform:uppercase">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Destination *</label>
+        <input class="form-input" id="ci-dest" type="text" placeholder="e.g. YLIL" style="text-transform:uppercase">
+      </div>
+      <div class="form-group">
+        <label class="form-label">ETD (Local) *</label>
+        <input class="form-input" id="ci-etd" type="time">
+      </div>
+      <div class="form-group">
+        <label class="form-label">ETA (Local) *</label>
+        <input class="form-input" id="ci-eta" type="time">
+      </div>
+      <div class="form-group">
+        <label class="form-label">SARTIME (Local) *</label>
+        <input class="form-input" id="ci-sartime" type="time">
+        <span class="form-hint">Typically ETA + 30 min</span>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Flight Type</label>
+        <select class="form-select" id="ci-type">
+          <option>Charter / Air Taxi</option>
+          <option>Scenic / Tourism</option>
+          <option>Positioning</option>
+          <option>Training</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label class="form-label">Notes</label>
+        <input class="form-input" id="ci-notes" type="text" placeholder="e.g. coastal scenic, multiple stops">
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-secondary" onclick="clearCheckin()">Clear</button>
+      <button class="btn-primary" id="submit-btn" onclick="submitCheckin()">✈ Lodge Flight & SARTIME</button>
+    </div>
+  </div>
+  <hr class="divider">
+  <div class="section-header"><div class="section-title">SARTIME Cancellation</div></div>
+  <div class="form-panel">
+    <div style="font-size:0.84rem;color:var(--text2);line-height:1.6;margin-bottom:16px;">Cancel your SARTIME immediately upon safe landing.</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Select Your Flight</label>
+        <select class="form-select" id="cancel-flight"><option value="">— No active flights —</option></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Actual Landing Time</label>
+        <input class="form-input" id="cancel-time" type="time">
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-primary" style="background:rgba(0,161,82,0.2);border-color:var(--green);" onclick="cancelSARTIME()">✓ Confirm Safe Landing & Cancel SARTIME</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FLEET ═══ -->
+
+<div class="view" id="view-aircraft">
+  <div class="section-header"><div class="section-title">Fleet Status</div></div>
+  <div class="aircraft-grid" id="aircraft-grid"></div>
+</div>
+
+<!-- ═══ CONTACTS ═══ -->
+
+<div class="view" id="view-contacts">
+  <div class="section-header"><div class="section-title">Pilot &amp; Ops Contacts</div></div>
+  <div class="contacts-grid" id="contacts-grid">
+    <div class="contact-card ops"><div class="contact-role">Operations Manager</div><div class="contact-name">Chris Halliday</div><div class="contact-detail">📞 0412 000 001</div><div class="contact-sub">Primary SAR — 0600–2200</div></div>
+    <div class="contact-card ops"><div class="contact-role">Deputy Ops / Chief Pilot</div><div class="contact-name">Sandra Keane</div><div class="contact-detail">📞 0412 000 002</div><div class="contact-sub">Secondary SAR — after hours</div></div>
+    <div class="contact-card emergency"><div class="contact-role">Emergency — JRCC Australia</div><div class="contact-name">Joint Rescue Coordination Centre</div><div class="contact-detail">📞 1800 815 257</div><div class="contact-sub">Activate after internal escalation only</div></div>
+    <div class="contact-card emergency"><div class="contact-role">Emergency — Airservices</div><div class="contact-name">Airservices Australia</div><div class="contact-detail">📞 1300 306 630</div><div class="contact-sub">ATC / overdue reporting</div></div>
+  </div>
+</div>
+
+<!-- ═══ SAR LOG ═══ -->
+
+<div class="view" id="view-log">
+  <div class="section-header">
+    <div class="section-title">SAR Operations Log</div>
+    <button class="btn-secondary" onclick="exportLog()" style="padding:5px 13px;font-size:0.76rem;">⬇ Export</button>
+  </div>
+  <div class="form-panel">
+    <div id="log-entries"><div class="log-entry"><span class="log-time">--:--</span><span class="log-type info">INFO</span><span class="log-msg">FlightWatch SAR initialised. Connecting to Ningaloo Aviation database...</span></div></div>
+  </div>
+</div>
+
+<!-- ═══ ADMIN PANEL ═══ -->
+
+<div class="view" id="view-admin">
+  <div class="section-header">
+    <div class="section-title amber-title">⚙ Admin Settings</div>
+    <div style="font-size:0.78rem;color:var(--text3)">Changes sync to all devices instantly</div>
+  </div>
+
+  <div class="admin-grid">
+    <!-- PILOTS -->
+    <div class="admin-section">
+      <div class="admin-section-title">👤 Pilots</div>
+      <div class="admin-list" id="pilot-list">
+        <div class="admin-empty">Loading pilots...</div>
+      </div>
+      <div style="font-family:'Rajdhani',sans-serif;font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">Add New Pilot</div>
+      <div class="admin-add-row">
+        <input class="form-input" id="new-pilot-name" placeholder="Full name" style="flex:2;">
+        <input class="form-input" id="new-pilot-phone" placeholder="04XX XXX XXX" type="tel">
+        <input class="form-input" id="new-pilot-ratings" placeholder="e.g. C172 / C182">
+      </div>
+      <div style="margin-top:10px;">
+        <button class="btn-amber" onclick="addPilot()" style="width:100%;padding:9px;">+ Add Pilot</button>
+      </div>
+    </div>
+
+```
+<!-- AIRCRAFT -->
+<div class="admin-section">
+  <div class="admin-section-title">🛩 Aircraft</div>
+  <div class="admin-list" id="aircraft-list">
+    <div class="admin-empty">Loading aircraft...</div>
+  </div>
+  <div style="font-family:'Rajdhani',sans-serif;font-size:0.72rem;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:8px;">Add New Aircraft</div>
+  <div class="admin-add-row">
+    <input class="form-input" id="new-ac-rego" placeholder="VH-XXX" style="text-transform:uppercase;flex:1;">
+    <select class="form-select" id="new-ac-type" style="flex:1;">
+      <option>C172</option>
+      <option>C182</option>
+      <option>C150</option>
+      <option>C206</option>
+      <option>PA28</option>
+      <option>Other</option>
+    </select>
+  </div>
+  <div style="margin-top:10px;">
+    <button class="btn-amber" onclick="addAircraft()" style="width:100%;padding:9px;">+ Add Aircraft</button>
+  </div>
+</div>
+```
+
+  </div>
+
+  <!-- OPS CONTACTS -->
+
+  <div class="admin-section" style="margin-bottom:20px;">
+    <div class="admin-section-title">📞 Ops & Emergency Contacts</div>
+    <div style="font-size:0.82rem;color:var(--text2);margin-bottom:14px;line-height:1.5;">Update your Ops Manager and Chief Pilot details. These appear in the Contacts tab and SAR escalation alerts.</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Ops Manager Name</label>
+        <input class="form-input" id="ops-name" placeholder="Full name">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Ops Manager Phone</label>
+        <input class="form-input" id="ops-phone" placeholder="04XX XXX XXX" type="tel">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Chief Pilot Name</label>
+        <input class="form-input" id="cp-name" placeholder="Full name">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Chief Pilot Phone</label>
+        <input class="form-input" id="cp-phone" placeholder="04XX XXX XXX" type="tel">
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-amber" onclick="saveOpsContacts()">Save Contacts</button>
+    </div>
+  </div>
+</div>
+
+<!-- ESCALATION MODAL -->
+
+<div class="modal-overlay" id="escalation-modal">
+  <div class="modal">
+    <div class="modal-title">🚨 SAR Escalation Checklist</div>
+    <div class="modal-subtitle" id="esc-subtitle">Tap each step to mark complete. Follow in sequence.</div>
+    <div class="checklist-step"><div class="step-num" data-n="1" onclick="toggleStep(this)">1</div><div class="step-body"><div class="step-title">Attempt radio contact</div><div class="step-detail">Call aircraft on last known frequency. Try 126.7 MHz (area) and 121.5 MHz (guard/emergency). Log time and result.</div><div class="step-time">▶ Immediately upon SARTIME expiry</div></div></div>
+    <div class="checklist-step"><div class="step-num" data-n="2" onclick="toggleStep(this)">2</div><div class="step-body"><div class="step-title">Attempt phone contact — Pilot</div><div class="step-detail">Call pilot mobile. If no answer, try alternate contacts. Allow 5 minutes.</div><div class="step-time">▶ T+0 to T+5 min</div></div></div>
+    <div class="checklist-step"><div class="step-num" data-n="3" onclick="toggleStep(this)">3</div><div class="step-body"><div class="step-title">Contact destination aerodrome</div><div class="step-detail">Call destination aerodrome or CTAF. Confirm whether aircraft has landed. Check for alternate diversions.</div><div class="step-time">▶ T+5 to T+10 min</div></div></div>
+    <div class="checklist-step"><div class="step-num" data-n="4" onclick="toggleStep(this)">4</div><div class="step-body"><div class="step-title">Notify Ops Manager / Chief Pilot</div><div class="step-detail" id="esc-step4-detail">Contact Ops Manager. Brief on aircraft, route, SARTIME, and all actions taken.</div><div class="step-time">▶ T+10 min</div></div></div>
+    <div class="checklist-step"><div class="step-num" data-n="5" onclick="toggleStep(this)">5</div><div class="step-body"><div class="step-title">Contact Airservices Australia</div><div class="step-detail">Call 1300 306 630. Report: registration, pilot, route, SARTIME, souls on board, fuel endurance, and all contact attempts.</div><div class="step-time">▶ T+15 to T+30 min</div></div></div>
+    <div class="checklist-step"><div class="step-num" data-n="6" onclick="toggleStep(this)">6</div><div class="step-body"><div class="step-title">Notify JRCC Australia if directed</div><div class="step-detail">Call 1800 815 257 only if directed. Provide full flight details. JRCC assumes SAR coordination.</div><div class="step-time">▶ As directed</div></div></div>
+    <div class="checklist-step"><div class="step-num" data-n="7" onclick="toggleStep(this)">7</div><div class="step-body"><div class="step-title">Document all actions in SAR Log</div><div class="step-detail">Record every call, time, person, and outcome. Required for CASA and ATSB reporting.</div><div class="step-time">▶ Continuously</div></div></div>
+    <button class="modal-close-btn" onclick="closeModal('escalation-modal')">✓ Close Checklist</button>
+  </div>
+</div>
+
+<!-- SMS MODAL -->
+
+<div class="modal-overlay" id="sms-modal">
+  <div class="sms-modal">
+    <div class="sms-title">📱 Send Overdue SMS Alert</div>
+    <div style="font-size:0.81rem;color:var(--text2);margin-bottom:11px;">Review and confirm recipients before sending.</div>
+    <div class="sms-preview" id="sms-preview-text"></div>
+    <div id="sms-recipients-list"></div>
+    <button class="btn-send-sms" onclick="sendSMS()">📤 Send Alert Now</button>
+    <div class="sent-confirm" id="sms-sent">✓ Alert sent and logged</div>
+    <button class="modal-close-btn" onclick="closeModal('sms-modal')" style="margin-top:8px;">Close</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- FIREBASE MODULE -->
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, onSnapshot, updateDoc, deleteDoc, doc, query, orderBy, serverTimestamp, enableIndexedDbPersistence, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCgp1mSMBotbn5IXeoy_5xmSOev8WQUyJU",
+  authDomain: "ningaloo-aviation-sar.firebaseapp.com",
+  projectId: "ningaloo-aviation-sar",
+  storageBucket: "ningaloo-aviation-sar.firebasestorage.app",
+  messagingSenderId: "1062329697529",
+  appId: "1:1062329697529:web:90dba409f0838e854a8e28"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Safari on iPad has issues with IndexedDB persistence - safely attempt it
+try {
+  enableIndexedDbPersistence(db).catch(err => {
+    console.warn('Offline persistence not available:', err.code);
+  });
+} catch(e) {
+  console.warn('Persistence setup skipped:', e);
+}
+
+window.addEventListener('online', ()=>setSyncStatus('live'));
+window.addEventListener('offline', ()=>setSyncStatus('offline'));
+
+// ── FLIGHTS listener
+const flightsQ = query(collection(db,'flights'), orderBy('lodgedAt','desc'));
+onSnapshot(flightsQ, snap => {
+  window._flights = [];
+  snap.forEach(d => window._flights.push({id:d.id,...d.data()}));
+  setSyncStatus('live');
+  renderTable(); updateCancelDropdown(); renderAircraft();
+}, err => {
+  setSyncStatus('error');
+  document.getElementById('sync-label').textContent = err.code||'Auth error';
+});
+
+// ── LOGS listener
+onSnapshot(query(collection(db,'sar_logs'),orderBy('ts','desc')), snap=>{
+  const el=document.getElementById('log-entries'); el.innerHTML='';
+  if(snap.empty){el.innerHTML='<div class="log-entry"><span class="log-time">--:--</span><span class="log-type info">INFO</span><span class="log-msg">No log entries yet.</span></div>';return;}
+  snap.forEach(d=>{
+    const e=d.data(); const div=document.createElement('div'); div.className='log-entry';
+    div.innerHTML=`<span class="log-time">${e.time||'--:--'}</span><span class="log-type ${e.type}">${e.type.toUpperCase()}</span><span class="log-msg">${e.msg}</span>`;
+    el.appendChild(div);
+  });
+}, err=>console.warn('logs:',err.code));
+
+// ── PILOTS listener
+onSnapshot(query(collection(db,'pilots'),orderBy('name')), snap=>{
+  window._pilots=[];
+  snap.forEach(d=>window._pilots.push({id:d.id,...d.data()}));
+  renderPilotList(); populatePilotDropdown();
+}, err=>console.warn('pilots:',err.code));
+
+// ── AIRCRAFT listener
+onSnapshot(query(collection(db,'aircraft'),orderBy('rego')), snap=>{
+  window._aircraft=[];
+  snap.forEach(d=>window._aircraft.push({id:d.id,...d.data()}));
+  renderAircraftList(); populateAircraftDropdown(); renderAircraft();
+}, err=>console.warn('aircraft:',err.code));
+
+// ── OPS CONTACTS listener
+onSnapshot(doc(db,'settings','ops'), snap=>{
+  if(snap.exists()){
+    const d=snap.data();
+    window._opsContacts = d;
+    document.getElementById('ops-name').value = d.opsName||'';
+    document.getElementById('ops-phone').value = d.opsPhone||'';
+    document.getElementById('cp-name').value = d.cpName||'';
+    document.getElementById('cp-phone').value = d.cpPhone||'';
+    renderOpsContacts(d);
+    updateEscalationStep4(d);
+  }
+}, err=>console.warn('settings:',err.code));
+
+// ── EXPOSE FIREBASE FUNCTIONS
+const wl = window;
+wl._db=db;
+wl._addDoc=(col,data)=>addDoc(collection(db,col),data);
+wl._setDoc=(col,id,data)=>setDoc(doc(db,col,id),data);
+wl._updateDoc=(col,id,data)=>updateDoc(doc(db,col,id),data);
+wl._deleteDoc=(col,id)=>deleteDoc(doc(db,col,id));
+wl._serverTimestamp=serverTimestamp;
+
+async function writeLog(type,msg){
+  try{ await addDoc(collection(db,'sar_logs'),{type,msg,time:localNow(),ts:serverTimestamp()}); }catch(e){}
+}
+wl._writeLog=writeLog;
+
+// ── SUBMIT CHECK-IN
+wl.submitCheckin = async function(){
+  const pilot=document.getElementById('ci-pilot').value;
+  const phone=document.getElementById('ci-phone').value;
+  const regoFull=document.getElementById('ci-rego').value;
+  const dep=document.getElementById('ci-dep').value.toUpperCase().trim();
+  const dest=document.getElementById('ci-dest').value.toUpperCase().trim();
+  const etd=document.getElementById('ci-etd').value;
+  const eta=document.getElementById('ci-eta').value;
+  const sartime=document.getElementById('ci-sartime').value;
+  const pax=document.getElementById('ci-pax').value||'0';
+  const type=document.getElementById('ci-type').value;
+  const notes=document.getElementById('ci-notes').value;
+  if(!pilot||!regoFull||!dep||!dest||!etd||!eta||!sartime){showToast('Fill in all required fields *','error');return;}
+  const parts=regoFull.split(' — ');
+  const rego=parts[0]; const aircraft=parts[1]||'';
+  const btn=document.getElementById('submit-btn');
+  btn.disabled=true; btn.textContent='Saving...';
+  try{
+    await addDoc(collection(db,'flights'),{pilot,phone,rego,aircraft,dep,dest,etd,eta,sartime,pax,type,notes,status:'airborne',lodgedAt:serverTimestamp(),lodgedTime:localNow()});
+    await writeLog('dep',`<b>${rego}</b> departed ${dep} → ${dest} | Pilot: ${pilot} | SARTIME: ${sartime} | POB: ${pax}`);
+    showToast('Flight lodged — live on all devices','success');
+    clearCheckin(); showView('ops');
+  }catch(e){showToast('Saved offline — syncs when signal returns','info');clearCheckin();showView('ops');}
+  btn.disabled=false; btn.textContent='✈ Lodge Flight & SARTIME';
+};
+
+wl.cancelSARTIME = async function(){
+  const id=document.getElementById('cancel-flight').value;
+  const t=document.getElementById('cancel-time').value||localNow();
+  if(!id){showToast('Select a flight to cancel','error');return;}
+  const f=(window._flights||[]).find(x=>x.id===id);
+  try{
+    await updateDoc(doc(db,'flights',id),{status:'landed',landedAt:t});
+    if(f) await writeLog('arr',`<b>${f.rego}</b> SARTIME cancelled — ${f.pilot} landed at ${t} | ${f.dep}→${f.dest}`);
+    showToast('SARTIME cancelled — OPS notified','success');
+  }catch(e){showToast('Saved offline — syncs when signal returns','info');}
+};
+
+wl.markLanded = async function(id){
+  const f=(window._flights||[]).find(x=>x.id===id);
+  try{
+    await updateDoc(doc(db,'flights',id),{status:'landed',landedAt:localNow()});
+    if(f) await writeLog('arr',`<b>${f.rego}</b> marked landed by OPS | Pilot: ${f.pilot}`);
+    showToast('Flight marked landed','success');
+  }catch(e){showToast('Update saved offline','info');}
+};
+
+wl.removeFlight = async function(id){
+  try{ await updateDoc(doc(db,'flights',id),{status:'archived'}); }catch(e){}
+};
+
+// ── ADMIN: PILOTS
+wl.addPilot = async function(){
+  const name=document.getElementById('new-pilot-name').value.trim();
+  const phone=document.getElementById('new-pilot-phone').value.trim();
+  const ratings=document.getElementById('new-pilot-ratings').value.trim();
+  if(!name){showToast('Enter a pilot name','error');return;}
+  try{
+    await addDoc(collection(db,'pilots'),{name,phone,ratings,addedAt:serverTimestamp()});
+    await writeLog('admin',`Pilot added: ${name}`);
+    document.getElementById('new-pilot-name').value='';
+    document.getElementById('new-pilot-phone').value='';
+    document.getElementById('new-pilot-ratings').value='';
+    showToast('Pilot added','success');
+  }catch(e){showToast('Error adding pilot','error');}
+};
+
+wl.deletePilot = async function(id,name){
+  if(!confirm(`Remove ${name} from the pilot list?`)) return;
+  try{
+    await deleteDoc(doc(db,'pilots',id));
+    await writeLog('admin',`Pilot removed: ${name}`);
+    showToast('Pilot removed','info');
+  }catch(e){showToast('Error removing pilot','error');}
+};
+
+// ── ADMIN: AIRCRAFT
+wl.addAircraft = async function(){
+  const rego=document.getElementById('new-ac-rego').value.toUpperCase().trim();
+  const type=document.getElementById('new-ac-type').value;
+  if(!rego){showToast('Enter an aircraft rego','error');return;}
+  try{
+    await addDoc(collection(db,'aircraft'),{rego,type,addedAt:serverTimestamp()});
+    await writeLog('admin',`Aircraft added: ${rego} (${type})`);
+    document.getElementById('new-ac-rego').value='';
+    showToast('Aircraft added','success');
+  }catch(e){showToast('Error adding aircraft','error');}
+};
+
+wl.deleteAircraft = async function(id,rego){
+  if(!confirm(`Remove ${rego} from the fleet?`)) return;
+  try{
+    await deleteDoc(doc(db,'aircraft',id));
+    await writeLog('admin',`Aircraft removed: ${rego}`);
+    showToast('Aircraft removed','info');
+  }catch(e){showToast('Error removing aircraft','error');}
+};
+
+// ── ADMIN: OPS CONTACTS
+wl.saveOpsContacts = async function(){
+  const opsName=document.getElementById('ops-name').value.trim();
+  const opsPhone=document.getElementById('ops-phone').value.trim();
+  const cpName=document.getElementById('cp-name').value.trim();
+  const cpPhone=document.getElementById('cp-phone').value.trim();
+  try{
+    await setDoc(doc(db,'settings','ops'),{opsName,opsPhone,cpName,cpPhone});
+    await writeLog('admin',`Ops contacts updated: ${opsName} / ${cpName}`);
+    showToast('Contacts saved — all devices updated','success');
+  }catch(e){showToast('Error saving contacts','error');}
+};
+
+setSyncStatus('connecting');
+</script>
+
+<script>
+window._flights=[];
+window._pilots=[];
+window._aircraft=[];
+window._opsContacts={opsName:'Ops Manager',opsPhone:'—',cpName:'Chief Pilot',cpPhone:'—'};
+let overdueFlights=[];
+
+// ── CLOCK
+function updateClock(){const n=new Date(),p=v=>String(v).padStart(2,'0');document.getElementById('clock').textContent=p(n.getUTCHours())+':'+p(n.getUTCMinutes())+':'+p(n.getUTCSeconds())+' UTC';}
+setInterval(updateClock,1000);updateClock();
+
+// ── VIEWS
+function showView(name){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-tab,.mobile-nav-btn').forEach(t=>t.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  const order=['ops','pilot','aircraft','contacts','log','admin'];
+  const i=order.indexOf(name);
+  document.querySelectorAll('.nav-tab')[i]?.classList.add('active');
+  document.querySelectorAll('.mobile-nav-btn')[i]?.classList.add('active');
+  if(name==='aircraft') renderAircraft();
+}
+
+// ── HELPERS
+function timeToMins(t){if(!t)return null;const[h,m]=t.split(':').map(Number);return h*60+m;}
+function nowMins(){const n=new Date();return n.getHours()*60+n.getMinutes();}
+function minsToHHMM(m){return String(Math.floor(Math.abs(m)/60)).padStart(2,'0')+':'+String(Math.abs(m)%60).padStart(2,'0');}
+function localNow(){const n=new Date();return String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');}
+
+// ── SYNC STATUS
+function setSyncStatus(state){
+  const dot=document.getElementById('sync-dot'),label=document.getElementById('sync-label'),bar=document.getElementById('sync-bar-fill');
+  const notices=document.querySelectorAll('.offline-notice');
+  dot.className='sync-dot';
+  if(state==='live'){dot.classList.add('live');label.textContent='Live';bar.style.background='var(--green)';bar.style.width='100%';notices.forEach(n=>n.classList.remove('show'));setTimeout(()=>bar.style.width='0',1500);}
+  else if(state==='offline'){dot.classList.add('offline');label.textContent='Offline — queued';bar.style.background='var(--amber)';bar.style.width='100%';notices.forEach(n=>n.classList.add('show'));}
+  else if(state==='error'){dot.classList.add('error');label.textContent='Sync error';}
+  else{dot.classList.add('offline');label.textContent='Connecting...';}
+}
+
+// ── POPULATE DROPDOWNS FROM FIREBASE
+function populatePilotDropdown(){
+  const sel=document.getElementById('ci-pilot');
+  const val=sel.value;
+  sel.innerHTML='<option value="">— Select Pilot —</option>';
+  (window._pilots||[]).forEach(p=>{
+    const o=document.createElement('option');
+    o.value=p.name; o.textContent=p.name;
+    sel.appendChild(o);
+  });
+  if(val) sel.value=val;
+}
+
+function populateAircraftDropdown(){
+  const sel=document.getElementById('ci-rego');
+  const val=sel.value;
+  sel.innerHTML='<option value="">— Select Aircraft —</option>';
+  (window._aircraft||[]).forEach(a=>{
+    const o=document.createElement('option');
+    o.value=`${a.rego} — ${a.type}`; o.textContent=`${a.rego} — ${a.type}`;
+    sel.appendChild(o);
+  });
+  if(val) sel.value=val;
+}
+
+// ── RENDER ADMIN PILOT LIST
+function renderPilotList(){
+  const el=document.getElementById('pilot-list');
+  if(!window._pilots.length){el.innerHTML='<div class="admin-empty">No pilots added yet</div>';return;}
+  el.innerHTML='';
+  window._pilots.forEach(p=>{
+    const div=document.createElement('div'); div.className='admin-item';
+    div.innerHTML=`<div class="admin-item-info"><div class="admin-item-name">${p.name}</div><div class="admin-item-sub">${p.phone||'No phone'} ${p.ratings?'· '+p.ratings:''}</div></div><button class="btn-danger" onclick="deletePilot('${p.id}','${p.name}')">Remove</button>`;
+    el.appendChild(div);
+  });
+}
+
+// ── RENDER ADMIN AIRCRAFT LIST
+function renderAircraftList(){
+  const el=document.getElementById('aircraft-list');
+  if(!window._aircraft.length){el.innerHTML='<div class="admin-empty">No aircraft added yet</div>';return;}
+  el.innerHTML='';
+  window._aircraft.forEach(a=>{
+    const div=document.createElement('div'); div.className='admin-item';
+    div.innerHTML=`<div class="admin-item-info"><div class="admin-item-name" style="font-family:'Share Tech Mono',monospace;color:var(--accent)">${a.rego}</div><div class="admin-item-sub">${a.type}</div></div><button class="btn-danger" onclick="deleteAircraft('${a.id}','${a.rego}')">Remove</button>`;
+    el.appendChild(div);
+  });
+}
+
+// ── RENDER OPS CONTACTS IN CONTACTS TAB
+function renderOpsContacts(d){
+  const grid=document.getElementById('contacts-grid');
+  // Update first two cards
+  const cards=grid.querySelectorAll('.contact-card.ops');
+  if(cards[0]){
+    cards[0].querySelector('.contact-name').textContent=d.opsName||'Ops Manager';
+    cards[0].querySelector('.contact-detail').textContent='📞 '+(d.opsPhone||'—');
+  }
+  if(cards[1]){
+    cards[1].querySelector('.contact-name').textContent=d.cpName||'Chief Pilot';
+    cards[1].querySelector('.contact-detail').textContent='📞 '+(d.cpPhone||'—');
+  }
+  // Update pilot cards
+  const existingPilotCards=grid.querySelectorAll('.contact-card.pilot');
+  existingPilotCards.forEach(c=>c.remove());
+  (window._pilots||[]).forEach(p=>{
+    const card=document.createElement('div'); card.className='contact-card pilot';
+    card.innerHTML=`<div class="contact-role">Pilot</div><div class="contact-name">${p.name}</div><div class="contact-detail">📞 ${p.phone||'—'}</div><div class="contact-sub">${p.ratings||''}</div>`;
+    // Insert before emergency cards
+    const emergency=grid.querySelector('.contact-card.emergency');
+    grid.insertBefore(card,emergency);
+  });
+}
+
+function updateEscalationStep4(d){
+  const el=document.getElementById('esc-step4-detail');
+  if(el) el.textContent=`Contact ${d.opsName||'Ops Manager'} (${d.opsPhone||'—'}) or ${d.cpName||'Chief Pilot'} (${d.cpPhone||'—'}). Brief on aircraft, route, SARTIME, and all actions taken.`;
+}
+
+// ── FLIGHT TABLE
+function renderTable(){
+  const tbody=document.getElementById('flights-tbody');
+  const now=nowMins();
+  overdueFlights=[];
+  let airborne=0,warnings=0,overdue=0;
+  const active=(window._flights||[]).filter(f=>f.status==='airborne'||f.status==='landed');
+  if(!active.length){
+    tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:40px;font-family:Rajdhani,sans-serif;letter-spacing:2px;font-size:0.88rem;">NO ACTIVE FLIGHTS — ALL AIRCRAFT ON GROUND</td></tr>';
+    ['stat-total','stat-airborne','stat-warning','stat-overdue'].forEach((id,i)=>document.getElementById(id).textContent=i===0?(window._flights||[]).filter(f=>f.status!=='archived').length:0);
+    document.getElementById('overdue-banner').classList.remove('show');
+    return;
+  }
+  tbody.innerHTML='';
+  active.forEach(f=>{
+    if(f.status==='archived') return;
+    const diff=timeToMins(f.sartime)-now;
+    let countdown='',cClass='pending',rowClass='',statusBadge='',actionBtn='';
+    if(f.status==='landed'){
+      countdown='CANCELLED';cClass='pending';
+      statusBadge=`<span class="badge badge-landed">Landed ${f.landedAt||''}</span>`;
+      actionBtn=`<button class="btn btn-remove" onclick="removeFlight('${f.id}')">Archive</button>`;
+    } else {
+      airborne++;
+      actionBtn=`<button class="btn btn-land" onclick="markLanded('${f.id}')">✓ Landed</button>`;
+      if(diff<0){countdown='OVERDUE '+minsToHHMM(diff);cClass='overdue';rowClass='overdue';statusBadge='<span class="badge badge-overdue">OVERDUE</span>';overdue++;overdueFlights.push(f);}
+      else if(diff<=30){countdown=minsToHHMM(diff)+' ⚠';cClass='warn';rowClass='warning';statusBadge='<span class="badge badge-warning">Warning</span>';warnings++;}
+      else{countdown=minsToHHMM(diff);cClass='ok';statusBadge='<span class="badge badge-airborne">Airborne</span>';}
+    }
+    const tr=document.createElement('tr');tr.className=rowClass;
+    tr.innerHTML=`<td><span class="rego">${f.rego}</span><br><span style="font-size:0.68rem;color:var(--text3)">${f.aircraft||''}</span></td><td><span style="font-weight:600">${f.pilot}</span><br><span style="font-family:'Share Tech Mono',monospace;font-size:0.74rem;color:var(--text2)">${f.phone||'—'}</span></td><td><span style="color:var(--text2);font-size:0.83rem">${f.dep} <span style="color:var(--text3)">→</span> ${f.dest}</span></td><td><span class="time-mono">${f.etd}</span></td><td><span class="time-mono">${f.eta}</span></td><td><span class="time-mono" style="color:var(--amber)">${f.sartime}</span></td><td><span class="sar-countdown ${cClass}">${countdown}</span></td><td>${statusBadge}</td><td>${actionBtn}</td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('stat-total').textContent=(window._flights||[]).filter(f=>f.status!=='archived').length;
+  document.getElementById('stat-airborne').textContent=airborne;
+  document.getElementById('stat-warning').textContent=warnings;
+  document.getElementById('stat-overdue').textContent=overdue;
+  document.getElementById('last-update').textContent='Updated '+localNow();
+  if(overdueFlights.length){
+    const f=overdueFlights[0];
+    document.getElementById('banner-title').textContent=`🚨 SARTIME OVERDUE — ${f.rego} — ${f.pilot}`;
+    document.getElementById('banner-detail').textContent=`Route: ${f.dep}→${f.dest} | SARTIME: ${f.sartime} | POB: ${f.pax} | Phone: ${f.phone}`;
+    document.getElementById('overdue-banner').classList.add('show');
+  } else {document.getElementById('overdue-banner').classList.remove('show');}
+}
+
+function updateCancelDropdown(){
+  const sel=document.getElementById('cancel-flight');
+  sel.innerHTML='<option value="">— Select flight —</option>';
+  (window._flights||[]).filter(f=>f.status==='airborne').forEach(f=>{
+    const o=document.createElement('option');o.value=f.id;o.textContent=`${f.rego} — ${f.pilot} — ${f.dep}→${f.dest}`;sel.appendChild(o);
+  });
+}
+
+function renderAircraft(){
+  const grid=document.getElementById('aircraft-grid');grid.innerHTML='';
+  const list=window._aircraft.length?window._aircraft:[];
+  if(!list.length){grid.innerHTML='<div style="color:var(--text3);font-family:Rajdhani,sans-serif;letter-spacing:2px;font-size:0.85rem;padding:20px;">No aircraft in fleet — add via Admin panel</div>';return;}
+  list.forEach(a=>{
+    const f=(window._flights||[]).find(x=>x.rego===a.rego&&x.status==='airborne');
+    let cls='available',dotCls='dot-green',statusTxt='Available';
+    if(f){const d=timeToMins(f.sartime)-nowMins();if(d<0){cls='overdue-ac';dotCls='dot-red';statusTxt='OVERDUE';}else{cls='airborne';dotCls='dot-blue';statusTxt='Airborne';}}
+    const card=document.createElement('div');card.className=`aircraft-card ${cls}`;
+    card.innerHTML=`<div class="aircraft-rego">${a.rego}</div><div class="aircraft-type">${a.type}</div><div style="font-size:0.78rem"><span class="status-dot ${dotCls}"></span>${statusTxt}</div>${f?`<div style="font-size:0.71rem;color:var(--text2);margin-top:5px">${f.pilot}<br>${f.dep}→${f.dest}</div>`:''}`;
+    grid.appendChild(card);
+  });
+}
+
+function clearCheckin(){
+  ['ci-pilot','ci-phone','ci-rego','ci-dep','ci-dest','ci-etd','ci-eta','ci-sartime','ci-pax','ci-notes'].forEach(id=>{
+    const el=document.getElementById(id);if(el.tagName==='SELECT')el.selectedIndex=0;else el.value='';
+  });document.getElementById('ci-type').selectedIndex=0;
+}
+
+function openEscalationModal(){
+  if(overdueFlights.length){
+    const f=overdueFlights[0];
+    document.getElementById('esc-subtitle').textContent=`Aircraft: ${f.rego} | Pilot: ${f.pilot} | ${f.dep}→${f.dest} | SARTIME: ${f.sartime} | POB: ${f.pax}`;
+  }
+  document.getElementById('escalation-modal').classList.add('show');
+  if(window._writeLog) window._writeLog('sar','Escalation checklist opened for overdue SARTIME');
+}
+function toggleStep(el){el.classList.toggle('done');el.textContent=el.classList.contains('done')?'✓':el.getAttribute('data-n');}
+
+function openSMSModal(){
+  const f=overdueFlights[0];const t=localNow();
+  const c=window._opsContacts||{};
+  document.getElementById('sms-preview-text').textContent=f
+    ?`NINGALOO AVIATION SAR ALERT\n\nOVERDUE SARTIME — ${t} LOCAL\n\nAircraft: ${f.rego} (${f.aircraft||''})\nPilot: ${f.pilot}\nPhone: ${f.phone||'—'}\nRoute: ${f.dep} → ${f.dest}\nSARTIME: ${f.sartime}\nPOB: ${f.pax} pax\n\nImmediate action required.\nOps: ${c.opsPhone||'—'}`
+    :`NINGALOO AVIATION SAR ALERT\nOverdue SARTIME — ${t} LOCAL\nContact Ops for details.`;
+  // Build recipients from ops contacts
+  document.getElementById('sms-recipients-list').innerHTML=`
+    <div class="sms-recipient"><input type="checkbox" class="sms-check" checked><div><div class="sms-name">${c.opsName||'Ops Manager'}</div><div class="sms-num">${c.opsPhone||'—'}</div></div></div>
+    <div class="sms-recipient"><input type="checkbox" class="sms-check" checked><div><div class="sms-name">${c.cpName||'Chief Pilot'}</div><div class="sms-num">${c.cpPhone||'—'}</div></div></div>`;
+  document.getElementById('sms-sent').style.display='none';
+  document.getElementById('sms-modal').classList.add('show');
+}
+function sendSMS(){
+  document.getElementById('sms-sent').style.display='block';
+  if(window._writeLog) window._writeLog('sar','SMS overdue alert dispatched to nominated contacts');
+  setTimeout(()=>closeModal('sms-modal'),2200);
+}
+function closeModal(id){document.getElementById(id).classList.remove('show');}
+
+function showToast(msg,type='info'){
+  const t=document.getElementById('toast');t.textContent=msg;t.className=`toast show ${type}`;
+  setTimeout(()=>t.className='toast',3200);
+}
+window.showToast=showToast;
+
+function exportLog(){
+  const rows=document.querySelectorAll('#log-entries .log-entry');
+  let txt='NINGALOO AVIATION — FLIGHTWATCH SAR LOG\nExported: '+new Date().toLocaleString()+'\n\n';
+  rows.forEach(r=>{txt+=`[${r.querySelector('.log-time')?.textContent}] [${r.querySelector('.log-type')?.textContent}] ${r.querySelector('.log-msg')?.textContent}\n`;});
+  const a=document.createElement('a');a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(txt);a.download='NingalooSAR-Log-'+new Date().toISOString().slice(0,10)+'.txt';a.click();
+}
+
+setInterval(()=>{renderTable();renderAircraft();},30000);
+</script>
+
+</body>
+</html>
