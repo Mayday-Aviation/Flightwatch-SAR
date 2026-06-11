@@ -3709,8 +3709,8 @@ function renderTable(){
   // Warning banner (5 min)
   const warnFlight=(window._flights||[]).find(f=>f.status==='airborne'&&sarDiffMins(f.sartime, f.sartimeNextDay, f.sarTs)!==null&&sarDiffMins(f.sartime, f.sartimeNextDay, f.sarTs)>0&&sarDiffMins(f.sartime, f.sartimeNextDay, f.sarTs)<=5);
   if(warnFlight){
-    document.getElementById('warning-banner-title').textContent=` SARTIME IN ${sarDiffMins(warnFlight.sartime)} MIN — ${warnFlight.rego} — ${warnFlight.pilot}`;
-    document.getElementById('warning-banner-detail').textContent=`Route: ${warnFlight.dep}→${warnFlight.dest} | SARTIME: ${warnFlight.sartime} | POB: ${warnFlight.pax}`;
+    document.getElementById('warning-banner-title').textContent=` SARTIME IN ${sarDiffMins(warnFlight.sartime, warnFlight.sartimeNextDay, warnFlight.sarTs)} MIN — ${warnFlight.rego} — ${warnFlight.pilot}`;
+    document.getElementById('warning-banner-detail').textContent=`Route: ${warnFlight.dep}→${warnFlight.dest} | SARTIME: ${formatSarDisplay(warnFlight)} | POB: ${warnFlight.pax}`;
     document.getElementById('warning-banner').classList.add('show');
   } else { document.getElementById('warning-banner').classList.remove('show'); }
 
@@ -3718,7 +3718,7 @@ function renderTable(){
   const sardueFlight=overdueFlights.find(f=>sarDiffMins(f.sartime, f.sartimeNextDay, f.sarTs)!==null&&sarDiffMins(f.sartime, f.sartimeNextDay, f.sarTs)>-10);
   if(sardueFlight){
     document.getElementById('sardue-banner-title').textContent=`SARTIME REACHED — ${sardueFlight.rego} — ${sardueFlight.pilot}`;
-    document.getElementById('sardue-banner-detail').textContent=`Route: ${sardueFlight.dep}→${sardueFlight.dest} | SARTIME: ${sardueFlight.sartime} | POB: ${sardueFlight.pax} | Phone: ${sardueFlight.phone}`;
+    document.getElementById('sardue-banner-detail').textContent=`Route: ${sardueFlight.dep}→${sardueFlight.dest} | SARTIME: ${formatSarDisplay(sardueFlight)} | POB: ${sardueFlight.pax} | Phone: ${sardueFlight.phone}`;
     document.getElementById('sardue-banner').classList.add('show');
     // Trigger notification at exactly 0 min
     checkAndNotify(sardueFlight);
@@ -4174,6 +4174,11 @@ function checkAndNotify(flight){
     }
 
     if(window._writeLog) window._writeLog('sar','SARTIME reached — '+flight.rego+' ('+flight.pilot+') — alert fired');
+
+    // Set sarAlert flag in Firestore — triggers SMS via Cloud Function
+    if(window._updateDoc && flight.id && !flight.sarAlert){
+      window._updateDoc('flights', flight.id, { sarAlert: true }).catch(()=>{});
+    }
 
     // Start repeat alarm (unless already acknowledged)
     if(!_acknowledgedFlights.has(flight.id)){
